@@ -1,5 +1,6 @@
 class Location {
   final int? id;
+  final String? userId;
   final String name;
   final double latitude;
   final double longitude;
@@ -8,6 +9,7 @@ class Location {
 
   Location({
     this.id,
+    this.userId,
     required this.name,
     required this.latitude,
     required this.longitude,
@@ -18,6 +20,7 @@ class Location {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'userId': userId,
       'name': name,
       'latitude': latitude,
       'longitude': longitude,
@@ -29,6 +32,7 @@ class Location {
   factory Location.fromMap(Map<String, dynamic> map) {
     return Location(
       id: map['id'],
+      userId: map['userId'],
       name: map['name'],
       latitude: map['latitude'],
       longitude: map['longitude'],
@@ -36,4 +40,13 @@ class Location {
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Location && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 } 

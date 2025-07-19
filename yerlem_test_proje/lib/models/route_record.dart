@@ -1,5 +1,6 @@
 class RouteRecord {
   final int? id;
+  final String? userId;
   final DateTime startTime;
   final DateTime? endTime;
   final List<RoutePoint> points;
@@ -7,6 +8,7 @@ class RouteRecord {
 
   RouteRecord({
     this.id,
+    this.userId,
     required this.startTime,
     this.endTime,
     required this.points,
@@ -16,6 +18,7 @@ class RouteRecord {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'userId': userId,
       'startTime': startTime.millisecondsSinceEpoch,
       'endTime': endTime?.millisecondsSinceEpoch,
     };
@@ -24,6 +27,7 @@ class RouteRecord {
   factory RouteRecord.fromMap(Map<String, dynamic> map) {
     return RouteRecord(
       id: map['id'],
+      userId: map['userId'],
       startTime: DateTime.fromMillisecondsSinceEpoch(map['startTime']),
       endTime: map['endTime'] != null 
           ? DateTime.fromMillisecondsSinceEpoch(map['endTime'])

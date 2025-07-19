@@ -8,17 +8,25 @@ class HistoryProvider with ChangeNotifier {
   List<RouteRecord> _routeRecords = [];
   final Map<int, List<RoutePoint>> _routePoints = {};
   final Map<int, List<LocationVisit>> _routeVisits = {};
+  String? _currentUserId;
 
   List<RouteRecord> get routeRecords => _routeRecords;
   Map<int, List<RoutePoint>> get routePoints => _routePoints;
   Map<int, List<LocationVisit>> get routeVisits => _routeVisits;
 
-  HistoryProvider() {
+  // Kullanıcı ID'sini ayarla
+  void setUserId(String userId) {
+    _currentUserId = userId;
     _loadRouteRecords();
   }
 
   Future<void> _loadRouteRecords() async {
-    _routeRecords = await _databaseService.getRouteRecords();
+    if (_currentUserId == null) {
+      print('Kullanıcı ID\'si ayarlanmamış, rota kayıtları yüklenmiyor');
+      return;
+    }
+    
+    _routeRecords = await _databaseService.getRouteRecords(_currentUserId!);
     
     // Her rota için noktaları ve ziyaretleri yükle
     for (final route in _routeRecords) {
@@ -57,18 +65,24 @@ class HistoryProvider with ChangeNotifier {
 
   // Bitmemiş rotayı sonlandır
   Future<void> finishRoute(int routeId) async {
+    if (_currentUserId == null) {
+      print('Kullanıcı ID\'si ayarlanmamış, rota sonlandırılamıyor');
+      return;
+    }
+    
     try {
       // Rotayı sonlandır
       final route = _routeRecords.firstWhere((r) => r.id == routeId);
       final updatedRoute = RouteRecord(
         id: route.id,
+        userId: _currentUserId,
         startTime: route.startTime,
         endTime: DateTime.now(),
         points: route.points,
         visits: route.visits,
       );
       
-      await _databaseService.updateRouteRecord(updatedRoute);
+      await _databaseService.updateRouteRecord(updatedRoute, _currentUserId!);
       
       // Verileri yenile
       await _loadRouteRecords();

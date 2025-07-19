@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "172420576457",
+    "project_id": "yerlem-test-project",
+    "storage_bucket": "yerlem-test-project.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:172420576457:android:49913100873124af1f0918",
+        "android_client_info": {
+          "package_name": "com.example.yerlem_test_proje"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "172420576457-91e3kcvob6mu87179srpbrgo1v3hmoqg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.yerlem_test_proje",
+            "certificate_hash": "ec5eefd70cc126e1b8a249956974817db00d09df"
+          }
+        },
+        {
+          "client_id": "172420576457-mnu0bktf2942sltc3qjm2qj9m19g9ujh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfkYj5xYOpof3u5Yp8AIZU_dE2iZ5vLxU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "172420576457-mnu0bktf2942sltc3qjm2qj9m19g9ujh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "172420576457-bq4do4reepu1vervf62iga65qna4s9re.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.yerlemTestProje"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

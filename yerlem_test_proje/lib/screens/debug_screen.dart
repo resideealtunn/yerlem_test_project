@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/history_provider.dart';
 import '../services/database_service.dart';
@@ -23,12 +24,28 @@ class _DebugScreenState extends State<DebugScreen> {
 
   Future<void> _loadDebugInfo() async {
     try {
-      final locations = await _databaseService.getLocations();
-      final routes = await _databaseService.getRouteRecords();
+      // Debug için tüm kullanıcıların verilerini göster
+      final authProvider = context.read<AuthProvider>();
+      String? userId = authProvider.user?.uid;
+      
+      if (userId == null) {
+        setState(() {
+          _debugLogs = [
+            '=== DEBUG BİLGİLERİ ===',
+            'Kullanıcı giriş yapmamış',
+            'Debug bilgileri için giriş yapın',
+          ];
+        });
+        return;
+      }
+      
+      final locations = await _databaseService.getLocations(userId);
+      final routes = await _databaseService.getRouteRecords(userId);
       
       setState(() {
         _debugLogs = [
           '=== DEBUG BİLGİLERİ ===',
+          'Kullanıcı ID: $userId',
           'Toplam Konum: ${locations.length}',
           'Toplam Rota: ${routes.length}',
           '',

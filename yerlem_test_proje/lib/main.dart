@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'providers/auth_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/history_provider.dart';
 import 'services/notification_service.dart';
+import 'screens/auth_screen.dart';
 import 'screens/locations_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/debug_screen.dart';
+import 'screens/route_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   await NotificationService.initialize();
   runApp(const MyApp());
 }
@@ -21,11 +26,13 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => HistoryProvider()),
       ],
       child: MaterialApp(
         title: 'Konum Takip Uygulaması',
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
@@ -70,8 +77,35 @@ class MyApp extends StatelessWidget {
             elevation: 8,
           ),
         ),
-        home: const MainScreen(),
+        home: const AuthWrapper(),
       ),
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        // Loading durumunda loading göster
+        if (authProvider.isLoading) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        
+        // Kullanıcı giriş yapmışsa ana ekrana yönlendir
+        if (authProvider.isAuthenticated) {
+          return const MainScreen();
+        } else {
+          return const AuthScreen();
+        }
+      },
     );
   }
 }
@@ -89,6 +123,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   final List<Widget> _screens = [
     const MapScreen(),
     const LocationsScreen(),
+    const RouteScreen(),
     const HistoryScreen(),
     const DebugScreen(),
   ];
@@ -97,6 +132,23 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Kullanıcı ID'sini provider'lara ayarla
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setUserProviders();
+    });
+  }
+
+  void _setUserProviders() {
+    final authProvider = context.read<AuthProvider>();
+    final locationProvider = context.read<LocationProvider>();
+    final historyProvider = context.read<HistoryProvider>();
+    
+    if (authProvider.isAuthenticated && authProvider.user != null) {
+      final userId = authProvider.user!.uid;
+      locationProvider.setUserId(userId);
+      historyProvider.setUserId(userId);
+      print('Kullanıcı ID\'si ayarlandı: $userId');
+    }
   }
 
   @override
@@ -135,6 +187,47 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Yerlem'),
+        actions: [
+          Consumer<AuthProvider>(
+            builder: (context, authProvider, child) {
+              return PopupMenuButton<String>(
+                icon: const Icon(Icons.account_circle),
+                onSelected: (value) {
+                  if (value == 'profile') {
+                    _showProfileDialog(context, authProvider);
+                  } else if (value == 'logout') {
+                    _showLogoutDialog(context, authProvider);
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'profile',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.person),
+                        const SizedBox(width: 8),
+                        Text(authProvider.user?.displayName ?? 'Kullanıcı'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout),
+                        SizedBox(width: 8),
+                        Text('Çıkış Yap'),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
@@ -166,6 +259,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               label: 'Konumlar',
             ),
             BottomNavigationBarItem(
+              icon: Icon(Icons.directions),
+              label: 'Güzergah',
+            ),
+            BottomNavigationBarItem(
               icon: Icon(Icons.history),
               label: 'Geçmiş',
             ),
@@ -175,6 +272,55 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showProfileDialog(BuildContext context, AuthProvider authProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Profil Bilgileri'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ad: ${authProvider.user?.displayName ?? 'Misafir Kullanıcı'}'),
+            const SizedBox(height: 8),
+            Text('Email: ${authProvider.user?.email ?? 'Misafir'}'),
+            const SizedBox(height: 8),
+            Text('Durum: ${authProvider.isGuest ? 'Misafir' : 'Kayıtlı Kullanıcı'}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Çıkış Yap'),
+        content: const Text('Çıkış yapmak istediğinizden emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await authProvider.signOut();
+            },
+            child: const Text('Çıkış Yap'),
+          ),
+        ],
       ),
     );
   }

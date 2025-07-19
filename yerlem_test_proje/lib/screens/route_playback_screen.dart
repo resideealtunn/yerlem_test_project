@@ -28,6 +28,7 @@ class _RoutePlaybackScreenState extends State<RoutePlaybackScreen> {
   bool _isPlaying = false;
   int _currentPointIndex = 0;
   Timer? _playbackTimer;
+  double _playbackSpeed = 1.0; // Oynatım hızı (1.0 = normal hız)
   
   // Konya koordinatları
   static const LatLng _konyaCenter = LatLng(37.872669888420376, 32.49263157763532);
@@ -41,12 +42,23 @@ class _RoutePlaybackScreenState extends State<RoutePlaybackScreen> {
   void _startPlayback() {
     if (_isPlaying || widget.routePoints.isEmpty) return;
 
+    // Eğer rota bittiyse baştan başlat
+    if (_currentPointIndex >= widget.routePoints.length) {
+      _currentPointIndex = 0;
+    }
+
     setState(() {
       _isPlaying = true;
-      _currentPointIndex = 0;
     });
 
-    _playbackTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+    _startTimer();
+  }
+
+  void _startTimer() {
+    // Hıza göre timer süresini hesapla (500ms normal hız)
+    final timerDuration = (500 / _playbackSpeed).round();
+    
+    _playbackTimer = Timer.periodic(Duration(milliseconds: timerDuration), (timer) {
       if (_currentPointIndex >= widget.routePoints.length) {
         _stopPlayback();
         return;
@@ -57,6 +69,14 @@ class _RoutePlaybackScreenState extends State<RoutePlaybackScreen> {
         _updateMapData();
       });
     });
+  }
+
+  void _restartPlaybackWithNewSpeed() {
+    // Mevcut timer'ı durdur
+    _playbackTimer?.cancel();
+    
+    // Yeni hızla timer'ı başlat
+    _startTimer();
   }
 
   void _stopPlayback() {
@@ -224,6 +244,38 @@ class _RoutePlaybackScreenState extends State<RoutePlaybackScreen> {
                   value: widget.routePoints.isEmpty ? 0 : _currentPointIndex / widget.routePoints.length,
                   backgroundColor: Colors.grey[300],
                   valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                ),
+                const SizedBox(height: 16),
+                // Hız ayarlama
+                Row(
+                  children: [
+                    const Icon(Icons.speed, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    const Text('Hız:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Slider(
+                        value: _playbackSpeed,
+                        min: 0.25,
+                        max: 4.0,
+                        divisions: 15,
+                        label: '${_playbackSpeed.toStringAsFixed(1)}x',
+                        onChanged: (value) {
+                          setState(() {
+                            _playbackSpeed = value;
+                          });
+                          // Eğer oynatım devam ediyorsa timer'ı yeniden başlat
+                          if (_isPlaying) {
+                            _restartPlaybackWithNewSpeed();
+                          }
+                        },
+                      ),
+                    ),
+                    Text(
+                      '${_playbackSpeed.toStringAsFixed(1)}x',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Row(

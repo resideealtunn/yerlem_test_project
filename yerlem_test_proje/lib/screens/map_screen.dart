@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/location_provider.dart';
+import '../providers/auth_provider.dart';
+import '../screens/auth_screen.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -128,34 +130,37 @@ class _MapScreenState extends State<MapScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              // Konumları yenile
+              // Haritayı yenile
               context.read<LocationProvider>().refreshLocations();
               _updateMapData();
             },
-          ),
-          IconButton(
-            icon: const Icon(Icons.gps_fixed),
-            onPressed: () {
-              // Konumu yeniden al
-              context.read<LocationProvider>().refreshCurrentLocation();
-              _updateMapData();
-            },
+            tooltip: 'Haritayı Yenile',
           ),
           IconButton(
             icon: const Icon(Icons.my_location),
             onPressed: () {
               // Mevcut konuma odaklan
-              if (context.read<LocationProvider>().currentPosition != null) {
+              final provider = context.read<LocationProvider>();
+              if (provider.currentPosition != null) {
                 _mapController?.animateCamera(
                   CameraUpdate.newLatLng(
                     LatLng(
-                      context.read<LocationProvider>().currentPosition!.latitude,
-                      context.read<LocationProvider>().currentPosition!.longitude,
+                      provider.currentPosition!.latitude,
+                      provider.currentPosition!.longitude,
                     ),
+                  ),
+                );
+              } else {
+                // Konum yoksa kullanıcıya bilgi ver
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Konum alınamıyor. GPS\'i kontrol edin.'),
+                    backgroundColor: Colors.orange,
                   ),
                 );
               }
             },
+            tooltip: 'Mevcut Konuma Git',
           ),
         ],
       ),
@@ -187,7 +192,7 @@ class _MapScreenState extends State<MapScreen> {
                 circles: _circles,
                 polylines: _polylines,
                 myLocationEnabled: true,
-                myLocationButtonEnabled: false,
+                myLocationButtonEnabled: true,
                 zoomControlsEnabled: false,
                 mapToolbarEnabled: false,
                 onCameraMove: (position) {
@@ -264,7 +269,7 @@ class _MapScreenState extends State<MapScreen> {
                           children: [
                             Expanded(
                               child: ElevatedButton.icon(
-                                onPressed: provider.isTracking ? null : provider.startTracking,
+                                onPressed: provider.isTracking ? null : () => _handleStartTracking(context),
                                 icon: const Icon(Icons.play_arrow),
                                 label: const Text('Başlat'),
                                 style: ElevatedButton.styleFrom(
@@ -371,5 +376,43 @@ class _MapScreenState extends State<MapScreen> {
         },
       ),
     );
+  }
+
+  void _handleStartTracking(BuildContext context) {
+    final authProvider = context.read<AuthProvider>();
+    
+    if (authProvider.isGuest) {
+      // Misafir kullanıcı için uyarı göster
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Kayıt Gerekli'),
+          content: const Text(
+            'Rota kaydetmek için öncelikle kayıt olmanız gerekmektedir. '
+            'Misafir kullanıcılar rota kaydedemez.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // Ana giriş ekranına yönlendir
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AuthScreen()),
+                );
+              },
+              child: const Text('Giriş Yap'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Kayıtlı kullanıcı için tracking başlat
+      context.read<LocationProvider>().startTracking();
+    }
   }
 } 

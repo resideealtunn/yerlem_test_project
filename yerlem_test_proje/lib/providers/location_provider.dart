@@ -17,12 +17,19 @@ class LocationProvider with ChangeNotifier {
   List<RoutePoint> _currentRoutePoints = [];
   List<LocationVisit> _currentVisits = [];
   Set<int> _visitedLocations = {};
+  String? _currentUserId;
 
   List<Location> get locations => _locations;
   Position? get currentPosition => _currentPosition;
   bool get isTracking => _isTracking;
   RouteRecord? get currentRoute => _currentRoute;
   List<RoutePoint> get currentRoutePoints => _currentRoutePoints;
+
+  // Kullanıcı ID'sini ayarla
+  void setUserId(String userId) {
+    _currentUserId = userId;
+    _loadLocations();
+  }
 
   LocationProvider() {
     _initialize();
@@ -62,9 +69,14 @@ class LocationProvider with ChangeNotifier {
   }
 
   Future<void> _loadLocations() async {
+    if (_currentUserId == null) {
+      print('Kullanıcı ID\'si ayarlanmamış, konumlar yüklenmiyor');
+      return;
+    }
+    
     try {
-      _locations = await _databaseService.getLocations();
-      print('Konumlar yüklendi. Toplam: ${_locations.length}');
+      _locations = await _databaseService.getLocations(_currentUserId!);
+      print('Konumlar yüklendi. Kullanıcı: $_currentUserId, Toplam: ${_locations.length}');
       for (final location in _locations) {
         print('Konum: ${location.name} - ${location.latitude}, ${location.longitude}');
       }
@@ -75,6 +87,11 @@ class LocationProvider with ChangeNotifier {
   }
 
   Future<void> addLocation(String name, double latitude, double longitude, double radius) async {
+    if (_currentUserId == null) {
+      print('Kullanıcı ID\'si ayarlanmamış, konum eklenemiyor');
+      return;
+    }
+    
     print('Konum ekleniyor: $name, $latitude, $longitude, $radius');
     
     final location = Location(
@@ -86,7 +103,7 @@ class LocationProvider with ChangeNotifier {
     );
 
     try {
-      final id = await _databaseService.insertLocation(location);
+      final id = await _databaseService.insertLocation(location, _currentUserId!);
       print('Konum başarıyla eklendi. ID: $id');
       await _loadLocations();
       print('Konumlar yeniden yüklendi. Toplam: ${_locations.length}');
@@ -96,7 +113,12 @@ class LocationProvider with ChangeNotifier {
   }
 
   Future<void> deleteLocation(int id) async {
-    await _databaseService.deleteLocation(id);
+    if (_currentUserId == null) {
+      print('Kullanıcı ID\'si ayarlanmamış, konum silinemiyor');
+      return;
+    }
+    
+    await _databaseService.deleteLocation(id, _currentUserId!);
     await _loadLocations();
   }
 
@@ -134,6 +156,10 @@ class LocationProvider with ChangeNotifier {
 
   void startTracking() async {
     if (_isTracking) return;
+    if (_currentUserId == null) {
+      print('Kullanıcı ID\'si ayarlanmamış, rota takibi başlatılamıyor');
+      return;
+    }
 
     print('Rota takibi başlatılıyor...');
     _isTracking = true;
@@ -143,9 +169,10 @@ class LocationProvider with ChangeNotifier {
       visits: [],
     );
 
-    final routeId = await _databaseService.insertRouteRecord(_currentRoute!);
+    final routeId = await _databaseService.insertRouteRecord(_currentRoute!, _currentUserId!);
     _currentRoute = RouteRecord(
       id: routeId,
+      userId: _currentUserId,
       startTime: _currentRoute!.startTime,
       points: [],
       visits: [],
@@ -174,13 +201,14 @@ class LocationProvider with ChangeNotifier {
     if (_currentRoute != null) {
       final updatedRoute = RouteRecord(
         id: _currentRoute!.id,
+        userId: _currentUserId,
         startTime: _currentRoute!.startTime,
         endTime: DateTime.now(),
         points: _currentRoutePoints,
         visits: _currentVisits,
       );
 
-      await _databaseService.updateRouteRecord(updatedRoute);
+      await _databaseService.updateRouteRecord(updatedRoute, _currentUserId!);
       print('Rota kaydedildi. Route ID: ${_currentRoute!.id}');
     }
 

@@ -16,8 +16,9 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'location_tracker.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -26,6 +27,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE locations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId TEXT NOT NULL,
         name TEXT NOT NULL,
         latitude REAL NOT NULL,
         longitude REAL NOT NULL,
@@ -38,6 +40,7 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE route_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId TEXT NOT NULL,
         startTime INTEGER NOT NULL,
         endTime INTEGER
       )
@@ -69,42 +72,70 @@ class DatabaseService {
     ''');
   }
 
-  // Konum işlemleri
-  Future<int> insertLocation(Location location) async {
-    final db = await database;
-    return await db.insert('locations', location.toMap());
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // userId sütunlarını ekle
+      await db.execute('ALTER TABLE locations ADD COLUMN userId TEXT');
+      await db.execute('ALTER TABLE route_records ADD COLUMN userId TEXT');
+      
+      // Mevcut kayıtlar için varsayılan userId (eski kullanıcılar için)
+      await db.execute('UPDATE locations SET userId = "legacy_user" WHERE userId IS NULL');
+      await db.execute('UPDATE route_records SET userId = "legacy_user" WHERE userId IS NULL');
+    }
   }
 
-  Future<List<Location>> getLocations() async {
+  // Konum işlemleri
+  Future<int> insertLocation(Location location, String userId) async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('locations');
+    final locationMap = location.toMap();
+    locationMap['userId'] = userId;
+    return await db.insert('locations', locationMap);
+  }
+
+  Future<List<Location>> getLocations(String userId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'locations',
+      where: 'userId = ?',
+      whereArgs: [userId],
+    );
     return List.generate(maps.length, (i) => Location.fromMap(maps[i]));
   }
 
-  Future<void> deleteLocation(int id) async {
+  Future<void> deleteLocation(int id, String userId) async {
     final db = await database;
-    await db.delete('locations', where: 'id = ?', whereArgs: [id]);
+    await db.delete(
+      'locations', 
+      where: 'id = ? AND userId = ?', 
+      whereArgs: [id, userId]
+    );
   }
 
   // Rota kayıt işlemleri
-  Future<int> insertRouteRecord(RouteRecord route) async {
+  Future<int> insertRouteRecord(RouteRecord route, String userId) async {
     final db = await database;
-    return await db.insert('route_records', route.toMap());
+    final routeMap = route.toMap();
+    routeMap['userId'] = userId;
+    return await db.insert('route_records', routeMap);
   }
 
-  Future<void> updateRouteRecord(RouteRecord route) async {
+  Future<void> updateRouteRecord(RouteRecord route, String userId) async {
     final db = await database;
     await db.update(
       'route_records',
       route.toMap(),
-      where: 'id = ?',
-      whereArgs: [route.id],
+      where: 'id = ? AND userId = ?',
+      whereArgs: [route.id, userId],
     );
   }
 
-  Future<List<RouteRecord>> getRouteRecords() async {
+  Future<List<RouteRecord>> getRouteRecords(String userId) async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('route_records');
+    final List<Map<String, dynamic>> maps = await db.query(
+      'route_records',
+      where: 'userId = ?',
+      whereArgs: [userId],
+    );
     return List.generate(maps.length, (i) => RouteRecord.fromMap(maps[i]));
   }
 
