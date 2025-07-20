@@ -1,5 +1,37 @@
-Yerlem - Konum Takip Uygulaması
+# Yerlem - Konum Takip Uygulaması
+
 Yerlem, kullanıcıların konumlarını takip etmelerine, rotalarını kaydetmelerine ve geçmiş verilerini görüntülemelerine olanak sağlayan kapsamlı bir Flutter mobil uygulamasıdır.
+
+## Görev Gereksinimleri Karşılanma Durumu
+
+Konumlar Sayfası: Tamamlandı
+- Konumlar sayfası mevcut
+- Konum ekleme özelliği
+- Yarıçap seçimi (50m, 100m, 200m, 500m)
+- SQLite veritabanında saklama
+
+Harita Ekranı: Tamamlandı
+- Konya koordinatlarına odaklanma (37.872669888420376, 32.49263157763532)
+- Konumların daire ile gösterimi
+- Gerçek zamanlı konum takibi
+- Rota kaydetme (Başlat/Bitir)
+- Konum girişinde bildirim
+- Geçmişe kaydetme
+
+Geçmiş Rotalar: Tamamlandı
+- Rota geçmişi görüntüleme
+- Ziyaret edilen konumlar ve bildirim zamanları
+- Oynat butonu ile animasyonlu rota çizimi
+- Otomatik harita takibi ve yakınlaştırma
+
+Teknik Gereksinimler: Tamamlandı
+- Flutter (en güncel sürüm)
+- google_maps_flutter entegrasyonu
+- geolocator ile gerçek zamanlı konum
+- sqflite ile yerel veri saklama
+- provider ile durum yönetimi
+- flutter_local_notifications ile bildirimler
+- Android ve iOS platform desteği
 
 Özellikler
 Kimlik Doğrulama
@@ -92,7 +124,35 @@ Modeller
 location.dart: Konum modeli
 route_record.dart: Rota kayıt modeli
 
-Veritabanı Yapısı (SQLite)
+## API Anahtarları
+
+### Google Maps API
+- API Key: 'AIzaSyDbTv86Dw8N1GZg7zioE0XSMCdsEhgHfvE'
+- Kullanım: Harita görüntüleme ve rota hesaplama
+- Konum: `lib/screens/route_screen.dart` ve `ios/Runner/Info.plist`
+
+### Firebase (Opsiyonel)
+- GoogleService-Info.plist: iOS için mevcut
+- google-services.json: Android için mevcut
+- Kullanım: Kimlik doğrulama ve veri senkronizasyonu
+
+## Proje Çalıştırma Talimatları
+
+### Gereksinimler
+- Flutter SDK (3.8.0+)
+- Dart SDK (3.8.0+)
+- Android Studio / VS Code
+- Android SDK (API 21+)
+- iOS için: macOS ve Xcode (iOS geliştirme için)
+
+### Konum İzinleri
+- Android: `android/app/src/main/AndroidManifest.xml` dosyasında izinler tanımlı
+- iOS: `ios/Runner/Info.plist` dosyasında izinler tanımlı
+
+## Veritabanı Yapısı (SQLite)
+
+### Konumlar Tablosu
+```sql
 CREATE TABLE locations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   userId TEXT NOT NULL,
@@ -102,12 +162,20 @@ CREATE TABLE locations (
   radius REAL NOT NULL,
   createdAt INTEGER NOT NULL
 );
+```
+
+### Rota Kayıtları Tablosu
+```sql
 CREATE TABLE route_records (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   userId TEXT NOT NULL,
   startTime INTEGER NOT NULL,
   endTime INTEGER
 );
+```
+
+### Rota Noktaları Tablosu
+```sql
 CREATE TABLE route_points (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   routeId INTEGER NOT NULL,
@@ -116,6 +184,10 @@ CREATE TABLE route_points (
   timestamp INTEGER NOT NULL,
   FOREIGN KEY (routeId) REFERENCES route_records (id)
 );
+```
+
+### Konum Ziyaretleri Tablosu
+```sql
 CREATE TABLE location_visits (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   routeId INTEGER NOT NULL,
@@ -125,3 +197,53 @@ CREATE TABLE location_visits (
   FOREIGN KEY (routeId) REFERENCES route_records (id),
   FOREIGN KEY (locationId) REFERENCES locations (id)
 );
+```
+
+## Örnek Konumlar
+
+Uygulama ilk açıldığında varsayılan konumlar eklenmez. Kullanıcılar kendi konumlarını ekleyebilir:
+Önerilen Test Konumları (Konya)
+Konya Merkez: 37.872669888420376, 32.49263157763532
+Selçuklu: 37.8715, 32.4846
+Meram: 37.8364, 32.4643
+Karatay: 37.8697, 32.4841
+
+Ek Özellikler (Yaratıcılık)
+Eklenen Özellikler
+Renkli Daireler: Her konum için farklı renkli daireler
+Konum Düzenleme: Mevcut konumları düzenleme özelliği
+Rota Optimizasyonu: En kısa yol algoritması (Nearest Neighbor)
+Hız Kontrolü: Rota oynatımında hız ayarlama
+Arka Plan Takibi: Uygulama kapalıyken konum takibi
+Misafir Modu: Hesap oluşturmadan kullanım
+Firebase Entegrasyonu: Kimlik doğrulama ve veri senkronizasyonu
+Debug Ekranı: Geliştirici araçları
+Responsive Tasarım: Farklı ekran boyutlarına uyum
+
+Kullanıcı Deneyimi İyileştirmeleri
+Modern UI: Material Design 3 uyumlu arayüz
+Animasyonlar: Yumuşak geçişler ve animasyonlar
+Bildirimler: Konum girişi ve rota durumu bildirimleri
+Offline Çalışma: İnternet bağlantısı olmadan çalışma
+Çoklu Platform: Android ve iOS desteği
+
+Ekran Görüntüleri
+Harita Ekranı: Gerçek zamanlı konum takibi
+Konumlar: Konum yönetimi ve düzenleme
+Rota Planlama: Güzergah oluşturma
+Geçmiş: Tamamlanan rotaların listesi
+Oynatım: Animasyonlu rota izleme
+
+Geliştirici Notları
+
+Kod Kalitesi
+Modüler Yapı: Provider pattern ile durum yönetimi
+Temiz Kod: SOLID prensiplerine uygun yazım
+Dokümantasyon: Kapsamlı kod açıklamaları
+Hata Yönetimi: Try-catch blokları ve kullanıcı dostu hata mesajları
+
+Performans Optimizasyonları
+Lazy Loading: Gerektiğinde veri yükleme
+Memory Management: Dispose pattern kullanımı
+Database Optimization: Index'ler ve sorgu optimizasyonu
+Background Processing: Arka plan işlemleri için ayrı servisler

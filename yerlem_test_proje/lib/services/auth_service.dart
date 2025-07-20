@@ -2,44 +2,62 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Firebase Authentication işlemlerini yöneten servis sınıfı.
+/// Bu sınıf şunları yönetir:
+/// - Email/şifre ile kayıt ve giriş
+/// - Google hesabı ile giriş
+/// - Misafir girişi
+/// - Kullanıcı oturum yönetimi
 class AuthService {
+  // Firebase Auth örneği
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Google Sign-In örneği
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  // Firestore örneği (şu an kullanılmıyor, gelecekteki genişletmeler için)
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Kullanıcı durumu stream'i
+  /// Kullanıcının oturum durumundaki değişiklikleri dinlemek için stream.
+  /// Widget'lar bu stream'i dinleyerek kullanıcı giriş/çıkış durumuna tepki verebilir.
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // Mevcut kullanıcı
+  /// Şu an oturum açmış kullanıcıyı döndürür.
+  /// Eğer kullanıcı giriş yapmamışsa null döner.
   User? get currentUser => _auth.currentUser;
 
-  // Email/Password ile kayıt
+  /// Email ve şifre ile yeni kullanıcı kaydı oluşturur.
+  /// [email]: Kullanıcı email adresi
+  /// [password]: Kullanıcı şifresi
+  /// [displayName]: Kullanıcının görünen adı
   Future<void> registerWithEmailAndPassword(
       String email, String password, String displayName) async {
     try {
       print('AuthService: Firebase kayıt işlemi başlatılıyor...');
+      
+      // Firebase'e yeni kullanıcı kaydı oluştur
       UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       print('AuthService: Kullanıcı oluşturuldu, profil güncelleniyor...');
-      // Kullanıcı profilini güncelle
+      
+      // Kullanıcı profilini güncelle (displayName ekle)
       await result.user?.updateDisplayName(displayName);
 
       print('AuthService: Firestore kayıt atlanıyor (API etkinleştirilmemiş)');
-      // Firestore kayıt işlemi atlanıyor çünkü API etkinleştirilmemiş
-      // Sadece Firebase Authentication kullanılıyor
+      // Firestore'a ek veri kaydetme işlemi şu an devre dışı
+      // İleride kullanıcıya ait ek bilgileri kaydetmek için kullanılabilir
 
       print('AuthService: Kayıt işlemi başarılı: $email');
-      // Kullanıcı otomatik olarak giriş yapmış durumda kalacak
+      // Başarılı kayıt sonrası kullanıcı otomatik olarak giriş yapmış olur
     } catch (e) {
       print('AuthService: Kayıt hatası: $e');
-      rethrow;
+      rethrow; // Hata yakalanıp uygun şekilde işlenmesi için yeniden fırlat
     }
   }
 
-  // Email/Password ile giriş
+  /// Email ve şifre ile giriş yapar.
+  /// Başarılı giriş durumunda UserCredential, hata durumunda exception döner.
   Future<UserCredential?> signInWithEmailAndPassword(
       String email, String password) async {
     try {
@@ -49,28 +67,32 @@ class AuthService {
       );
     } catch (e) {
       print('Giriş hatası: $e');
-      rethrow;
+      rethrow; // Hata UI katmanında gösterilmek üzere iletilir
     }
   }
 
-  // Google ile giriş
+  /// Google hesabı ile giriş yapar.
+  /// Kullanıcı Google hesabını seçmezse null döner.
   Future<UserCredential?> signInWithGoogle() async {
     try {
+      // Google hesap seçim ekranını açar
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null;
+      if (googleUser == null) return null; // Kullanıcı iptal etti
 
+      // Google hesap doğrulama bilgilerini al
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
+      // Firebase için kimlik bilgisi oluştur
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      UserCredential result =
-          await _auth.signInWithCredential(credential);
+      // Firebase'e giriş yap
+      UserCredential result = await _auth.signInWithCredential(credential);
 
-      // Firestore kayıt işlemi atlanıyor (API etkinleştirilmemiş)
+      // Firestore'a kullanıcı bilgisi kaydetme işlemi şu an devre dışı
       print('AuthService: Google giriş - Firestore kayıt atlanıyor');
 
       return result;
@@ -80,14 +102,14 @@ class AuthService {
     }
   }
 
-  // Misafir girişi
+  /// Misafir olarak giriş yapar.
+  /// Kullanıcıya geçici anonim bir hesap oluşturur.
   Future<UserCredential?> signInAnonymously() async {
     try {
       UserCredential result = await _auth.signInAnonymously();
 
-      // Firestore kayıt işlemi atlanıyor (API etkinleştirilmemiş)
+      // Firestore işlemleri şu an devre dışı
       print('AuthService: Misafir giriş - Firestore kayıt atlanıyor');
-
       return result;
     } catch (e) {
       print('Misafir giriş hatası: $e');
@@ -95,37 +117,43 @@ class AuthService {
     }
   }
 
-  // Çıkış yap
+  /// Kullanıcı oturumunu kapatır.
+  /// Hem Google hem de Firebase oturumunu sonlandırır.
   Future<void> signOut() async {
     try {
-      await _googleSignIn.signOut();
-      await _auth.signOut();
+      await _googleSignIn.signOut(); // Google oturumunu kapat
+      await _auth.signOut(); // Firebase oturumunu kapat
     } catch (e) {
       print('Çıkış hatası: $e');
       rethrow;
     }
   }
 
-  // Misafir kullanıcıyı kayıt et
+  /// Misafir kullanıcıyı kalıcı hesaba dönüştürür.
+  /// [email]: Yeni email adresi
+  /// [password]: Yeni şifre
+  /// [displayName]: Kullanıcı görünen adı
   Future<UserCredential?> convertGuestToRegistered(
       String email, String password, String displayName) async {
     try {
       User? currentUser = _auth.currentUser;
+      
+      // Sadece misafir kullanıcılar için bu işlem yapılabilir
       if (currentUser == null || !currentUser.isAnonymous) {
         throw Exception('Misafir kullanıcı değil');
       }
 
-      // Email/Password credential oluştur
+      // Email/şifre kimlik bilgisi oluştur
       AuthCredential credential =
           EmailAuthProvider.credential(email: email, password: password);
 
-      // Misafir kullanıcıyı güncelle
+      // Misafir hesabını kalıcı hesaba bağla
       UserCredential result = await currentUser.linkWithCredential(credential);
 
       // Kullanıcı profilini güncelle
       await result.user?.updateDisplayName(displayName);
 
-      // Firestore güncelleme işlemi atlanıyor (API etkinleştirilmemiş)
+      // Firestore güncellemesi şu an devre dışı
       print('AuthService: Misafir dönüştürme - Firestore güncelleme atlanıyor');
 
       return result;
@@ -135,10 +163,11 @@ class AuthService {
     }
   }
 
-  // Kullanıcı bilgilerini getir
+  /// Kullanıcı bilgilerini getirir (şu an devre dışı).
+  /// [uid]: Kullanıcı Firebase ID'si
   Future<Map<String, dynamic>?> getUserData(String uid) async {
     try {
-      // Firestore API etkinleştirilmemiş, null döndür
+      // Firestore entegrasyonu şu an aktif değil
       print('AuthService: Kullanıcı bilgisi getirme atlanıyor (API etkinleştirilmemiş)');
       return null;
     } catch (e) {
@@ -147,8 +176,8 @@ class AuthService {
     }
   }
 
-  // Kullanıcı misafir mi kontrol et
+  /// Kullanıcının misafir olup olmadığını kontrol eder.
   bool isGuest() {
     return currentUser?.isAnonymous ?? false;
   }
-} 
+}

@@ -5,6 +5,7 @@ import 'providers/auth_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/history_provider.dart';
 import 'services/notification_service.dart';
+import 'services/background_location_service.dart';
 import 'screens/auth_screen.dart';
 import 'screens/locations_screen.dart';
 import 'screens/map_screen.dart';
@@ -166,7 +167,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     switch (state) {
       case AppLifecycleState.paused:
         print('Uygulama arkaplanda');
-        // Uygulama arkaplanda - tracking devam eder
+        // Uygulama arkaplanda - background service devam eder
+        if (locationProvider.isTracking) {
+          print('Konum takibi arka planda devam ediyor...');
+        }
         break;
       case AppLifecycleState.resumed:
         print('Uygulama önplanda');
@@ -178,6 +182,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         break;
       case AppLifecycleState.detached:
         print('Uygulama kapatıldı');
+        // Uygulama tamamen kapatıldığında background service devam eder
         break;
       default:
         break;

@@ -27,6 +27,13 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyDbTv86Dw8N1GZg7zioE0XSMCdsEhgHfvE" />
             
+        <!-- Background Location Service -->
+        <service
+            android:name=".BackgroundLocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+            
         <activity
             android:name=".MainActivity"
             android:exported="true"

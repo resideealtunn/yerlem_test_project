@@ -111,6 +111,34 @@ class DatabaseService {
     );
   }
 
+  Future<void> updateLocation(Location location, String userId) async {
+    final db = await database;
+    final locationMap = location.toMap();
+    print('Güncellenecek konum verisi: $locationMap');
+    
+    final result = await db.update(
+      'locations',
+      locationMap,
+      where: 'id = ? AND userId = ?',
+      whereArgs: [location.id, userId],
+    );
+    
+    print('Güncelleme sonucu: $result satır etkilendi');
+    
+    // Güncellenmiş veriyi kontrol et
+    final updatedMaps = await db.query(
+      'locations',
+      where: 'id = ? AND userId = ?',
+      whereArgs: [location.id, userId],
+    );
+    
+    if (updatedMaps.isNotEmpty) {
+      print('Güncellenmiş veri: ${updatedMaps.first}');
+    } else {
+      print('Güncellenmiş veri bulunamadı!');
+    }
+  }
+
   // Rota kayıt işlemleri
   Future<int> insertRouteRecord(RouteRecord route, String userId) async {
     final db = await database;

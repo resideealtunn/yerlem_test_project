@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/location_provider.dart';
+import '../models/location.dart';
 
 class LocationsScreen extends StatefulWidget {
   const LocationsScreen({super.key});
@@ -362,7 +363,9 @@ class _LocationsScreenState extends State<LocationsScreen> {
                       ),
                     ],
                     onSelected: (value) {
-                      if (value == 'delete') {
+                      if (value == 'edit') {
+                        _showEditLocationDialog(context, location);
+                      } else if (value == 'delete') {
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
@@ -408,6 +411,207 @@ class _LocationsScreenState extends State<LocationsScreen> {
         onPressed: _showAddLocationDialog,
         icon: const Icon(Icons.add_location),
         label: const Text('Konum Ekle'),
+      ),
+    );
+  }
+
+  void _showEditLocationDialog(BuildContext context, Location location) {
+    // Mevcut değerleri controller'lara yükle
+    _nameController.text = location.name;
+    _latitudeController.text = location.latitude.toString();
+    _longitudeController.text = location.longitude.toString();
+    _selectedRadius = location.radius;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2196F3).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.edit_location,
+                color: Color(0xFF2196F3),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Konumu Düzenle',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: 'Konum Adı',
+                  prefixIcon: const Icon(Icons.location_on),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Konum adı gerekli';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _latitudeController,
+                      decoration: InputDecoration(
+                        labelText: 'Enlem',
+                        prefixIcon: const Icon(Icons.gps_fixed),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Enlem gerekli';
+                        }
+                        if (double.tryParse(value) == null) {
+                          return 'Geçerli bir sayı girin';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _longitudeController,
+                      decoration: InputDecoration(
+                        labelText: 'Boylam',
+                        prefixIcon: const Icon(Icons.gps_fixed),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Boylam gerekli';
+                        }
+                        if (double.tryParse(value) == null) {
+                          return 'Geçerli bir sayı girin';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<double>(
+                value: _selectedRadius,
+                decoration: InputDecoration(
+                  labelText: 'Yarıçap (metre)',
+                  prefixIcon: const Icon(Icons.radio_button_checked),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+                items: _radiusOptions.map((radius) {
+                  return DropdownMenuItem(
+                    value: radius,
+                    child: Text('${radius.toInt()}m'),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedRadius = value!;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Controller'ları temizle
+              _nameController.clear();
+              _latitudeController.clear();
+              _longitudeController.clear();
+            },
+            child: const Text('İptal'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              if (_formKey.currentState!.validate()) {
+                try {
+                  final provider = context.read<LocationProvider>();
+                  await provider.updateLocation(
+                    location.id!,
+                    _nameController.text,
+                    double.parse(_latitudeController.text),
+                    double.parse(_longitudeController.text),
+                    _selectedRadius,
+                  );
+                  
+                  Navigator.of(context).pop();
+                  
+                  // Controller'ları temizle
+                  _nameController.clear();
+                  _latitudeController.clear();
+                  _longitudeController.clear();
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${location.name} konumu başarıyla güncellendi!'),
+                      backgroundColor: Colors.green[600],
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Güncelleme hatası: $e'),
+                      backgroundColor: Colors.red[600],
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.save),
+            label: const Text('Güncelle'),
+          ),
+        ],
       ),
     );
   }

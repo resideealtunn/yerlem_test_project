@@ -436,14 +436,15 @@ class HistoryScreen extends StatelessWidget {
                                     routeId: route.id!,
                                     routePoints: points,
                                     visits: visits,
+                                    isIncompleteRoute: route.endTime == null,
                                   ),
                                 ),
                               );
                             },
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('Rotayı Oynat'),
+                            icon: Icon(route.endTime == null ? Icons.play_circle_outline : Icons.play_arrow),
+                            label: Text(route.endTime == null ? 'Devam Et' : 'Rotayı Oynat'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2196F3),
+                              backgroundColor: route.endTime == null ? Colors.orange : const Color(0xFF2196F3),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),

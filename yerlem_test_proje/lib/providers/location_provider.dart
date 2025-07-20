@@ -5,6 +5,7 @@ import '../models/route_record.dart';
 import '../services/database_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
+import '../services/background_location_service.dart';
 
 class LocationProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
@@ -122,6 +123,41 @@ class LocationProvider with ChangeNotifier {
     await _loadLocations();
   }
 
+  Future<void> updateLocation(int id, String name, double latitude, double longitude, double radius) async {
+    if (_currentUserId == null) {
+      print('Kullanıcı ID\'si ayarlanmamış, konum güncellenemiyor');
+      return;
+    }
+    
+    print('Konum güncelleniyor: $id, $name, $latitude, $longitude, $radius');
+    
+    // Mevcut konumu bul
+    final existingLocation = _locations.firstWhere((loc) => loc.id == id);
+    
+    final location = Location(
+      id: id,
+      userId: _currentUserId, // userId'yi ekle
+      name: name,
+      latitude: latitude,
+      longitude: longitude,
+      radius: radius,
+      createdAt: existingLocation.createdAt, // Mevcut oluşturma tarihini koru
+    );
+
+    try {
+      await _databaseService.updateLocation(location, _currentUserId!);
+      print('Konum başarıyla güncellendi. ID: $id');
+      await _loadLocations();
+      print('Konumlar yeniden yüklendi. Toplam: ${_locations.length}');
+      
+      // Güncellenmiş konumu kontrol et
+      final updatedLocation = _locations.firstWhere((loc) => loc.id == id);
+      print('Güncellenmiş konum: ${updatedLocation.name}, ${updatedLocation.latitude}, ${updatedLocation.longitude}, ${updatedLocation.radius}');
+    } catch (e) {
+      print('Konum güncellenirken hata: $e');
+    }
+  }
+
   // Konumları manuel olarak yeniden yükleme metodu
   Future<void> refreshLocations() async {
     await _loadLocations();
@@ -182,8 +218,12 @@ class LocationProvider with ChangeNotifier {
     _currentVisits = [];
     _visitedLocations = {};
 
+    // Normal location service'i başlat
     _locationService.startLocationTracking();
     _locationService.locationStream.listen(_onLocationUpdate);
+
+    // Background service'i de başlat
+    await BackgroundLocationService.startBackgroundLocation();
 
     await NotificationService.showRouteStartedNotification();
     notifyListeners();
@@ -197,6 +237,9 @@ class LocationProvider with ChangeNotifier {
     print('Rota takibi durduruluyor...');
     _isTracking = false;
     _locationService.stopLocationTracking();
+
+    // Background service'i de durdur
+    await BackgroundLocationService.stopBackgroundLocation();
 
     if (_currentRoute != null) {
       final updatedRoute = RouteRecord(

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math';
 import '../providers/location_provider.dart';
 import '../models/location.dart';
 
@@ -51,19 +52,31 @@ class _RouteScreenState extends State<RouteScreen> {
     });
 
     try {
-      // Seçilen durakları başlangıç ve bitiş arasına ekle
-      List<Location> waypoints = _selectedStops.toList();
+      // Seçilen durakları al ve tekrarları kaldır
+      Set<Location> uniqueStops = _selectedStops.toSet();
       
-      // Google Maps Directions API için waypoints parametresi oluştur
-      String waypointsParam = '';
-      if (waypoints.isNotEmpty) {
-        waypointsParam = '&waypoints=';
-        for (int i = 0; i < waypoints.length; i++) {
-          if (i > 0) waypointsParam += '|';
-          waypointsParam += '${waypoints[i].latitude},${waypoints[i].longitude}';
-        }
+      // Başlangıç ve bitiş aynı ise özel işlem
+      bool isSameLocation = _startLocation == _endLocation;
+      
+      // Başlangıç ve bitiş noktalarını duraklar listesinden çıkar
+      uniqueStops.remove(_startLocation);
+      uniqueStops.remove(_endLocation);
+      
+      List<Location> waypoints = uniqueStops.toList();
+      
+      // Eğer hiç durak yoksa ve başlangıç/bitiş aynıysa, rota bulmaya gerek yok
+      if (waypoints.isEmpty && isSameLocation) {
+        setState(() {
+          _routePoints = [];
+          _updateMap();
+          _isLoading = false;
+        });
+        return;
       }
 
+      // En kısa yol sıralamasını hesapla
+      List<Location> optimizedWaypoints = await _calculateOptimalRoute(waypoints);
+      
       // Google Maps Routes API kullanarak rota bul
       final response = await http.post(
         Uri.parse('https://routes.googleapis.com/directions/v2:computeRoutes'),
@@ -89,7 +102,7 @@ class _RouteScreenState extends State<RouteScreen> {
               }
             }
           },
-          'intermediates': waypoints.map((waypoint) => {
+          'intermediates': optimizedWaypoints.map((waypoint) => {
             'location': {
               'latLng': {
                 'latitude': waypoint.latitude,
@@ -151,6 +164,92 @@ class _RouteScreenState extends State<RouteScreen> {
     }
   }
 
+  // En kısa yol hesaplama (Nearest Neighbor algoritması)
+  Future<List<Location>> _calculateOptimalRoute(List<Location> waypoints) async {
+    if (waypoints.isEmpty) return waypoints;
+    
+    List<Location> optimizedRoute = [];
+    List<Location> unvisited = List.from(waypoints);
+    
+    // Başlangıç noktasından başla
+    Location currentLocation = _startLocation!;
+    
+    while (unvisited.isNotEmpty) {
+      // En yakın noktayı bul
+      Location nearestLocation = unvisited[0];
+      double shortestDistance = _calculateDistance(currentLocation, nearestLocation);
+      
+      for (Location location in unvisited) {
+        double distance = _calculateDistance(currentLocation, location);
+        if (distance < shortestDistance) {
+          shortestDistance = distance;
+          nearestLocation = location;
+        }
+      }
+      
+      // En yakın noktayı rotaya ekle
+      optimizedRoute.add(nearestLocation);
+      unvisited.remove(nearestLocation);
+      currentLocation = nearestLocation;
+    }
+    
+    return optimizedRoute;
+  }
+
+  // İki nokta arası mesafe hesaplama (Haversine formülü)
+  double _calculateDistance(Location loc1, Location loc2) {
+    const double earthRadius = 6371; // km
+    
+    double lat1Rad = loc1.latitude * (pi / 180);
+    double lat2Rad = loc2.latitude * (pi / 180);
+    double deltaLat = (loc2.latitude - loc1.latitude) * (pi / 180);
+    double deltaLon = (loc2.longitude - loc1.longitude) * (pi / 180);
+    
+    double a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+                cos(lat1Rad) * cos(lat2Rad) *
+                sin(deltaLon / 2) * sin(deltaLon / 2);
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    
+    return earthRadius * c;
+  }
+
+  // Optimize edilmiş durak listesini döndür
+  List<Location> _getOptimizedStops() {
+    Set<Location> uniqueStops = _selectedStops.toSet();
+    uniqueStops.remove(_startLocation);
+    uniqueStops.remove(_endLocation);
+    
+    if (uniqueStops.isEmpty) return [];
+    
+    // En kısa yol sıralamasını hesapla
+    List<Location> optimizedRoute = [];
+    List<Location> unvisited = List.from(uniqueStops);
+    
+    // Başlangıç noktasından başla
+    Location currentLocation = _startLocation!;
+    
+    while (unvisited.isNotEmpty) {
+      // En yakın noktayı bul
+      Location nearestLocation = unvisited[0];
+      double shortestDistance = _calculateDistance(currentLocation, nearestLocation);
+      
+      for (Location location in unvisited) {
+        double distance = _calculateDistance(currentLocation, location);
+        if (distance < shortestDistance) {
+          shortestDistance = distance;
+          nearestLocation = location;
+        }
+      }
+      
+      // En yakın noktayı rotaya ekle
+      optimizedRoute.add(nearestLocation);
+      unvisited.remove(nearestLocation);
+      currentLocation = nearestLocation;
+    }
+    
+    return optimizedRoute;
+  }
+
   List<LatLng> _decodePolyline(String encoded) {
     List<LatLng> poly = [];
     int index = 0, len = encoded.length;
@@ -186,30 +285,41 @@ class _RouteScreenState extends State<RouteScreen> {
     _markers.clear();
     _polylines.clear();
 
-    // Başlangıç noktası marker'ı
-    if (_startLocation != null) {
-      _markers.add(Marker(
-        markerId: const MarkerId('start'),
-        position: LatLng(_startLocation!.latitude, _startLocation!.longitude),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: InfoWindow(
-          title: 'Başlangıç',
-          snippet: _startLocation!.name,
-        ),
-      ));
-    }
-
-    // Bitiş noktası marker'ı
-    if (_endLocation != null) {
-      _markers.add(Marker(
-        markerId: const MarkerId('end'),
-        position: LatLng(_endLocation!.latitude, _endLocation!.longitude),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: InfoWindow(
-          title: 'Bitiş',
-          snippet: _endLocation!.name,
-        ),
-      ));
+    // Başlangıç ve bitiş noktaları marker'ları
+    if (_startLocation != null && _endLocation != null) {
+      if (_startLocation == _endLocation) {
+        // Başlangıç ve bitiş aynı ise tek marker
+        _markers.add(Marker(
+          markerId: const MarkerId('start_end'),
+          position: LatLng(_startLocation!.latitude, _startLocation!.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+          infoWindow: InfoWindow(
+            title: 'Başlangıç/Bitiş',
+            snippet: _startLocation!.name,
+          ),
+        ));
+      } else {
+        // Başlangıç ve bitiş farklı ise iki ayrı marker
+        _markers.add(Marker(
+          markerId: const MarkerId('start'),
+          position: LatLng(_startLocation!.latitude, _startLocation!.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          infoWindow: InfoWindow(
+            title: 'Başlangıç',
+            snippet: _startLocation!.name,
+          ),
+        ));
+        
+        _markers.add(Marker(
+          markerId: const MarkerId('end'),
+          position: LatLng(_endLocation!.latitude, _endLocation!.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: InfoWindow(
+            title: 'Bitiş',
+            snippet: _endLocation!.name,
+          ),
+        ));
+      }
     }
 
     // Seçilen duraklar için marker'lar
@@ -367,8 +477,34 @@ class _RouteScreenState extends State<RouteScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
+                        // Başlangıç ve bitiş aynı ise bilgilendirme mesajı
+                        if (_startLocation != null && _endLocation != null && _startLocation == _endLocation)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline, color: Colors.blue.shade600, size: 16),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Başlangıç ve bitiş aynı seçildi. Bu nokta başlangıç ve bitiş olarak kullanılacak.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.blue.shade700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ...locationProvider.locations.map((location) {
-                          // Başlangıç ve bitiş noktalarını hariç tut
+                          // Başlangıç ve bitiş noktalarını duraklar listesinden hariç tut
                           if (location == _startLocation || location == _endLocation) {
                             return const SizedBox.shrink();
                           }
@@ -474,8 +610,8 @@ class _RouteScreenState extends State<RouteScreen> {
                         subtitle: Text('Başlangıç'),
                         tileColor: Colors.green.shade50,
                       ),
-                      // Seçilen duraklar
-                      ..._selectedStops.toList().asMap().entries.map((entry) {
+                      // Seçilen duraklar (optimize edilmiş sıralama)
+                      ..._getOptimizedStops().asMap().entries.map((entry) {
                         final index = entry.key;
                         final stop = entry.value;
                         return ListTile(
@@ -484,21 +620,20 @@ class _RouteScreenState extends State<RouteScreen> {
                             child: Text('${index + 2}', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                           title: Text(stop.name),
-                          subtitle: Text('Durak ${index + 2}'),
+                          subtitle: Text('Durak ${index + 2} (Optimize edilmiş sıralama)'),
                           tileColor: Colors.orange.shade50,
                         );
                       }).toList(),
-                      // Bitiş noktası (başlangıç ile aynı değilse göster)
-                      if (_endLocation != _startLocation)
-                        ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.red,
-                            child: Text('${_selectedStops.length + 2}', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ),
-                          title: Text(_endLocation?.name ?? ''),
-                          subtitle: Text('Bitiş'),
-                          tileColor: Colors.red.shade50,
+                      // Bitiş noktası
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.red,
+                          child: Text('${_getOptimizedStops().length + 2}', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),
+                        title: Text(_endLocation?.name ?? ''),
+                        subtitle: Text(_endLocation == _startLocation ? 'Bitiş (Başlangıç ile aynı)' : 'Bitiş'),
+                        tileColor: Colors.red.shade50,
+                      ),
                     ],
                   ),
                 ),
